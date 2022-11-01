@@ -25,6 +25,7 @@
 
 import os
 from activationmaps.activations import *
+from os.path import join as opj
 
 # This class handles the visualization of annotated csv files using
 # freesurfer v7+ (tksurfer) and Matlab
@@ -66,7 +67,7 @@ class fsVisualizeActivation:
 
         # tksurfer command
         self.tkpreload = ''
-        self.tkcmd = 'tksurfer'
+        self.tkcmd = 'tksurferfv'
 
     def __fixpath(self,path):
         fixed = path
@@ -158,7 +159,8 @@ class fsVisualizeActivation:
             cstabcsv = actv.getLastFileWritten()
 
             # the matlab command string
-            matlabcmd = f"matlab -batch \"replace_ctab('{ctabpath + fsparc}','{cstabcsv}','{ctabpath + fsparcvis}')\""
+            matlab_path = '/gsa/yktgsa/projects/w/watapps/matlab/linux/R2019b/bin/matlab'
+            matlabcmd = f"{matlab_path} -batch \"replace_ctab('{ctabpath + fsparc}','{cstabcsv}','{ctabpath + fsparcvis}')\""
 
             # execute the matlab command
             os.system(matlabcmd)
@@ -166,13 +168,31 @@ class fsVisualizeActivation:
             # the tksurfer command string
             tksrfcmd = str(self.tkpreload + ' ' + self.tkcmd).strip()
             tksrfcmd = tksrfcmd + f" {self.fssubjn}" + f" {hemistr}" + f" pial -annotation {tkparcvis}"
-
+            
+            # create command for freeview (tksurf outdated) 
+            subj_dir = opj(self.fspath, self.fssubjp, self.fssubjn)
+            surf_file = opj(subj_dir, 'surf', hemistr + '.pial')
+            curv_file = opj(subj_dir, 'surf', hemistr + '.curv')
+            annot_file = opj(subj_dir, 'label', '.'.join([hemistr, tkparcvis]))
+            fvcmd = f'freeview -f {surf_file}:curvature={curv_file}:annot={annot_file}'
+            fvcmd = fvcmd + ' -viewport 3d -layout 1'
+            
+            # Rotate view if displaying right hemisphere
+            if hemi == 'Right':
+                fvcmd = fvcmd + ' -cam azimuth 180'
+            
+            # NEED TO CHANGE THIS!!!
             if saveToDisk:
                 tksrfcmd = tksrfcmd + f" save_tiff {saveAs}.tiff"
+                fvcmd = fvcmd + f' -ss {saveAs}'
+            
+            print(f'\ntk command: {tksrfcmd}')
+            print(f'fs command (tentative): {fvcmd}')
 
-            os.system(tksrfcmd)
+            os.system(fvcmd)
+            #os.system(tksrfcmd)
 
             # Cleanup: remove the csv tab file we created
-            rmcmd = f"rm {self.fspath + self.fssubjn}" + f"/label/{fsparcvis}"
+            rmcmd = f"rm {subj_dir}" + f"/label/{fsparcvis}"
 
             os.system(rmcmd)
