@@ -26,6 +26,8 @@
 import os
 from activationmaps.activations import *
 from os.path import join as opj
+import shutil
+from os.path import dirname
 
 # This class handles the visualization of annotated csv files using
 # freesurfer v7+ (tksurfer) and Matlab
@@ -136,7 +138,8 @@ class fsVisualizeActivation:
     #
     # Note: Saving to disk is currently under development and does not yet work
     #       correctly.  A tcl script needs to be generated and called to do this
-    def visualizeHemisphereActivation(self,actv,hemi='Left',saveToDisk=False,saveAs=''):
+    def visualizeHemisphereActivation(self, actv, hemi='Left', inflated=False,
+                                      saveToDisk=False, saveAs=''):
         bMatlab = self.__checkMatlab()
         bInit = self.isReady()
 
@@ -171,9 +174,13 @@ class fsVisualizeActivation:
             
             # create command for freeview (tksurf outdated) 
             subj_dir = opj(self.fspath, self.fssubjp, self.fssubjn)
-            surf_file = opj(subj_dir, 'surf', hemistr + '.pial')
+            surf_file = opj(subj_dir, 'surf', hemistr)
             curv_file = opj(subj_dir, 'surf', hemistr + '.curv')
             annot_file = opj(subj_dir, 'label', '.'.join([hemistr, tkparcvis]))
+            if inflated:
+                surf_file = surf_file + '.inflated'
+            else:
+                surf_file = surf_file + '.pial'
             fvcmd = f'freeview -f {surf_file}:curvature={curv_file}:annot={annot_file}'
             fvcmd = fvcmd + ' -viewport 3d -layout 1'
             
@@ -181,18 +188,15 @@ class fsVisualizeActivation:
             if hemi == 'Right':
                 fvcmd = fvcmd + ' -cam azimuth 180'
             
-            # NEED TO CHANGE THIS!!!
+            # Execute command (figure storage optional)
             if saveToDisk:
                 tksrfcmd = tksrfcmd + f" save_tiff {saveAs}.tiff"
                 fvcmd = fvcmd + f' -ss {saveAs}'
             
-            print(f'\ntk command: {tksrfcmd}')
-            print(f'fs command (tentative): {fvcmd}')
-
             os.system(fvcmd)
             #os.system(tksrfcmd)
 
-            # Cleanup: remove the csv tab file we created
-            rmcmd = f"rm {subj_dir}" + f"/label/{fsparcvis}"
-
-            os.system(rmcmd)
+            # Move annotation file to directory where the image will be stored
+            figdir = dirname(saveAs)
+            shutil.move(annot_file, opj(figdir, fsparcvis))
+            os.remove(opj(subj_dir, 'label', fsparc) + '.ctab.vis.csv')
